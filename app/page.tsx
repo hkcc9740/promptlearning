@@ -2,12 +2,14 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { getPublishedCourses } from "@/lib/courses";
 import { CourseCard } from "@/components/course-card";
+import { CourseGenerator } from "@/components/course-generator";
 import { NotionTag } from "@/components/notion-tag";
 
 export default async function HomePage() {
   const session = await auth();
   const courses = getPublishedCourses();
-  const primaryHref = session?.user ? "/courses" : "/signin";
+  const signedIn = Boolean(session?.user);
+  const primaryHref = signedIn ? "/courses" : "/signin";
 
   return (
     <>
@@ -38,6 +40,20 @@ export default async function HomePage() {
             Browse courses
           </Link>
         </div>
+      </section>
+
+      {/* ---------------- GENERATE FROM A LINK ---------------- */}
+      <section className="wrap pb-16 -mt-2">
+        <div className="flex items-baseline justify-between flex-wrap gap-4 mb-6">
+          <h2 className="text-3xl sm:text-4xl">Generate your own</h2>
+          <p className="text-sm text-muted max-w-sm">
+            Found a course anywhere? Turn it into an interactive one you can run.
+          </p>
+        </div>
+        <CourseGenerator
+          signedIn={signedIn}
+          signInHref={`/signin?next=${encodeURIComponent("/")}`}
+        />
       </section>
 
       {/* ---------------- COURSE CATALOG ---------------- */}
