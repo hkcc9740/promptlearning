@@ -21,6 +21,7 @@ export type PricingViewer =
       };
       renewsAt: string | null;
       status: string | null;
+      email: string | null;
     };
 
 export function PricingTable({
@@ -68,6 +69,10 @@ export function PricingTable({
             <strong className="tabular-nums">
               {viewer.usage.lessonsToday}/{viewer.usage.lessonsPerDay ?? "∞"}
             </strong>
+          </span>
+          <span className="text-muted">
+            Signed in as{" "}
+            <strong className="text-ink">{viewer.email ?? "(GitHub didn’t share an email)"}</strong>
           </span>
           {viewer.hasBilling && paymentsReady && (
             <button

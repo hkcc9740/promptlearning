@@ -17,7 +17,7 @@ function isComplimentaryPro(email: string | null | undefined): boolean {
   // Accept the lowercase name too — env var names are case-sensitive and easy to mistype.
   const list = (process.env.COMP_PRO_EMAILS ?? process.env.comp_pro_emails ?? "")
     .split(",")
-    .map((e) => e.trim().toLowerCase())
+    .map((e) => e.trim().replace(/^["'<]+|["'>]+$/g, "").trim().toLowerCase())
     .filter(Boolean);
   return list.includes(email.trim().toLowerCase());
 }

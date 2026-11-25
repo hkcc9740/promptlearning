@@ -34,6 +34,7 @@ export default async function PricingPage({
         },
         renewsAt: ent.subscription?.currentPeriodEnd?.toISOString() ?? null,
         status: ent.subscription?.status ?? null,
+        email: user?.email ?? null,
       }
     : { signedIn: false, introAvailable: true };
 
