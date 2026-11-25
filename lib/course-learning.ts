@@ -3,7 +3,7 @@ import type { PromptVariants } from "@/lib/courses";
 import { getEntitlements } from "@/lib/entitlements";
 import { currentLesson, getProgress, type CourseRef } from "@/lib/enrollments";
 import { buildLessonPrompts, type LessonCourse } from "@/lib/lessons";
-import type { SessionUser } from "@/lib/session";
+import { ensureUser, type SessionUser } from "@/lib/session";
 
 export type LearningState =
   | { kind: "signedOut"; signInHref: string; teaser: PromptVariants }
@@ -43,6 +43,7 @@ export async function getLearningState(
   const teaser = teaserOf(course.prompts);
   if (!user) return { kind: "signedOut", signInHref, teaser };
 
+  await ensureUser(user);
   const [ent, progress] = await Promise.all([getEntitlements(user.id), getProgress(user.id, ref)]);
 
   if (!progress.enrolled) {

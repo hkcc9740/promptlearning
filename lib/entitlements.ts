@@ -8,6 +8,19 @@ import { TZ_COOKIE, dayBounds, isValidTimeZone, monthBounds } from "@/lib/time-z
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
+/**
+ * Complimentary Pro: comma-separated emails in the COMP_PRO_EMAILS env var
+ * (e.g. the owner and testers) get Pro without a subscription.
+ */
+function isComplimentaryPro(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const list = (process.env.COMP_PRO_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.trim().toLowerCase());
+}
+
 export type Entitlements = {
   plan: Plan;
   /** Paid plan details, if any (for the pricing page / billing UI). */
@@ -95,7 +108,9 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
     !!user &&
     (user.plan === "plus" || user.plan === "pro") &&
     ACTIVE_STATUSES.has(user.subscriptionStatus ?? "");
-  const plan = PLANS[paidActive ? (user.plan as PlanId) : "free"];
+  const plan = isComplimentaryPro(user?.email)
+    ? PLANS.pro
+    : PLANS[paidActive ? (user.plan as PlanId) : "free"];
 
   const started = Number(courses?.n ?? 0);
   const done = Number(lessons?.n ?? 0);

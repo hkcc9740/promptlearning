@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PricingTable, type PricingViewer } from "@/components/pricing-table";
 import { getEntitlements } from "@/lib/entitlements";
-import { getSessionUser } from "@/lib/session";
+import { ensureUser, getSessionUser } from "@/lib/session";
 import { stripeConfigured } from "@/lib/stripe";
 
 export const metadata: Metadata = {
@@ -16,6 +16,7 @@ export default async function PricingPage({
 }) {
   const { upgraded, canceled } = await searchParams;
   const user = await getSessionUser();
+  if (user) await ensureUser(user);
   const ent = user ? await getEntitlements(user.id) : null;
 
   const viewer: PricingViewer = ent

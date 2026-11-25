@@ -7,7 +7,7 @@ import { MAX_SOURCES, SOURCE_GROUPS, type ShelfSource, type SourceKind } from "@
 import { GEMINI_FILE_PREFIX } from "@/lib/sources/gemini-files";
 import { canStartCourse, genRef, startCourse } from "@/lib/enrollments";
 import { deleteMyCourse, saveGeneratedCourse, updateMyCourseIdentity } from "@/lib/library";
-import { getSessionUser } from "@/lib/session";
+import { ensureUser, getSessionUser } from "@/lib/session";
 
 export type GenerateActionResult =
   | { ok: true; course: GeneratedCourse; savedId: string | null; saveError?: string }
@@ -82,6 +82,7 @@ export async function generateCourseAction(
   // Check BEFORE calling the AI so we don't spend a generation we can't give.
   const user = await getSessionUser();
   if (user) {
+    await ensureUser(user);
     const quota = await canStartCourse(user.id);
     if (!quota.ok) {
       return {
