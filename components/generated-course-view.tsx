@@ -137,14 +137,11 @@ export function GeneratedCourseView({
                 <span className="eyebrow mb-4 inline-block">Distilled from</span>
                 <div className="card divide-y divide-line">
                   {course.sources.map((s) => (
-                    <div
-                      key={s.name}
-                      className="flex items-baseline gap-4 px-5 py-3.5"
-                    >
-                      <span className="text-base font-semibold shrink-0">
-                        {s.name}
-                      </span>
-                      <span className="text-sm text-muted">{s.note}</span>
+                    <div key={s.name} className="px-5 py-3.5 min-w-0">
+                      <p className="text-base font-semibold leading-snug">{s.name}</p>
+                      {s.note && (
+                        <p className="mt-1 text-sm text-muted leading-relaxed">{s.note}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -161,17 +158,19 @@ export function GeneratedCourseView({
                   {course.syllabus.map((m) => (
                     <details key={m.n} className="card group overflow-hidden">
                       <summary className="flex items-center gap-4 px-5 py-4 cursor-pointer list-none select-none">
-                        <span className="font-mono text-sm text-muted tabular-nums">
+                        <span className="font-mono text-sm text-muted tabular-nums shrink-0">
                           {m.n}
                         </span>
-                        <span className="text-base font-semibold flex-1">
-                          {m.module}
-                        </span>
-                        {m.source && (
-                          <span className="hidden sm:inline text-xs text-muted">
-                            {m.source}
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-base font-semibold leading-snug">
+                            {m.module}
                           </span>
-                        )}
+                          {m.source && (
+                            <span className="mt-0.5 block text-xs text-muted truncate">
+                              {m.source}
+                            </span>
+                          )}
+                        </span>
                         <span
                           aria-hidden
                           className="text-muted transition-transform group-open:rotate-45 text-lg leading-none"

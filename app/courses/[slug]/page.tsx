@@ -94,8 +94,8 @@ export default async function CoursePage({
               <span className="eyebrow mb-4 inline-block">Distilled from</span>
               <div className="card divide-y divide-line">
                 {course.sources.map((s) => (
-                  <div key={s.name} className="flex items-baseline gap-4 px-5 py-3.5">
-                    <span className="text-base font-semibold shrink-0">{s.name}</span>
+                  <div key={s.name} className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 px-5 py-3.5 min-w-0">
+                    <span className="text-base font-semibold sm:shrink-0">{s.name}</span>
                     <span className="text-sm text-muted">{s.note}</span>
                   </div>
                 ))}
