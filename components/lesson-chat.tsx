@@ -15,10 +15,22 @@ type Props = {
   lessonTitle: string;
   initialMessages: Msg[];
   messagesLeftToday: number | null;
+  /** Side-panel helper inside the lesson player: no "start" step, no full-screen. */
+  helper?: boolean;
+  /** Helper mode: what's on screen right now (sent to the tutor as context). */
+  context?: string;
 };
 
 /** The in-site AI tutor for one lesson. Streams replies; auto-completes on the gate. */
-export function LessonChat({ courseRef, moduleIndex, lessonTitle, initialMessages, messagesLeftToday }: Props) {
+export function LessonChat({
+  courseRef,
+  moduleIndex,
+  lessonTitle,
+  initialMessages,
+  messagesLeftToday,
+  helper = false,
+  context,
+}: Props) {
   const router = useRouter();
   const [messages, setMessages] = useState<Msg[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -62,7 +74,7 @@ export function LessonChat({ courseRef, moduleIndex, lessonTitle, initialMessage
       const res = await fetch("/api/tutor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseRef, moduleIndex, message: content }),
+        body: JSON.stringify({ courseRef, moduleIndex, message: content, helper, context }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) {
@@ -106,12 +118,16 @@ export function LessonChat({ courseRef, moduleIndex, lessonTitle, initialMessage
   }
 
   const outOfMessages = left !== null && left <= 0;
-  const notStarted = messages.length === 0;
+  const notStarted = messages.length === 0 && !helper;
 
   const panel = (
     <div
       className={`card flex flex-col overflow-hidden ${
-        expanded ? "h-full w-full max-w-3xl mx-auto shadow-[var(--shadow-lg)]" : "h-[min(70vh,640px)]"
+        expanded
+          ? "h-full w-full max-w-3xl mx-auto shadow-[var(--shadow-lg)]"
+          : helper
+            ? "h-full"
+            : "h-[min(70vh,640px)]"
       }`}
     >
       {/* header */}
@@ -123,7 +139,7 @@ export function LessonChat({ courseRef, moduleIndex, lessonTitle, initialMessage
           <p className="text-sm font-semibold leading-tight">Your tutor</p>
           <p className="truncate text-xs text-muted">{lessonTitle}</p>
         </div>
-        <button
+        {!helper && <button
           type="button"
           onClick={() => setExpanded((x) => !x)}
           className="grid h-8 w-8 place-items-center rounded-lg text-ink-2 hover:bg-bg-2"
@@ -131,12 +147,22 @@ export function LessonChat({ courseRef, moduleIndex, lessonTitle, initialMessage
           title={expanded ? "Exit full screen (Esc)" : "Full screen"}
         >
           {expanded ? "⤡" : "⤢"}
-        </button>
+        </button>}
       </div>
 
       {/* messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3" aria-live="polite">
-        {notStarted ? (
+        {helper && messages.length === 0 ? (
+          <div className="h-full grid place-items-center text-center px-4">
+            <div>
+              <div className="text-3xl mb-2" aria-hidden>🤔</div>
+              <p className="font-semibold mb-1">Ask me anything</p>
+              <p className="text-sm text-ink-2">
+                Confused by a bite or an answer? Ask here, in your own words.
+              </p>
+            </div>
+          </div>
+        ) : notStarted ? (
           <div className="h-full grid place-items-center text-center px-4">
             <div>
               <div className="text-4xl mb-3" aria-hidden>👋</div>
@@ -212,7 +238,7 @@ export function LessonChat({ courseRef, moduleIndex, lessonTitle, initialMessage
               rows={1}
               maxLength={4000}
               disabled={outOfMessages || completed}
-              placeholder={outOfMessages ? "No messages left today" : "Type your answer…"}
+              placeholder={outOfMessages ? "No messages left today" : helper ? "Ask a question…" : "Type your answer…"}
               aria-label="Message your tutor"
               className="max-h-40 min-h-[42px] flex-1 resize-none rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-ink disabled:opacity-60"
             />

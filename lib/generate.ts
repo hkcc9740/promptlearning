@@ -327,6 +327,7 @@ async function callGeminiOnce(
   apiKey: string,
   parts: GeminiPart[],
   hasVideo: boolean,
+  schema: object = courseSchema,
 ): Promise<Record<string, unknown>> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const controller = new AbortController();
@@ -348,7 +349,7 @@ async function callGeminiOnce(
           temperature: 0.65,
           maxOutputTokens: 32768, // thinking models count reasoning tokens here too
           responseMimeType: "application/json",
-          responseSchema: courseSchema,
+          responseSchema: schema,
         },
       }),
     });
@@ -386,6 +387,7 @@ async function callGemini(
   apiKey: string,
   parts: GeminiPart[],
   hasVideo = false,
+  schema: object = courseSchema,
 ): Promise<Record<string, unknown>> {
   const models = [...new Set([GEMINI_MODEL, GEMINI_FALLBACK_MODEL])];
   const started = Date.now();
@@ -396,7 +398,7 @@ async function callGemini(
     for (let attempt = 0; attempt < 3; attempt++) {
       if (Date.now() - started > BUDGET_MS) throw friendly(last);
       try {
-        return await callGeminiOnce(model, apiKey, parts, hasVideo);
+        return await callGeminiOnce(model, apiKey, parts, hasVideo, schema);
       } catch (e) {
         last = e;
         console.warn(`Gemini ${model} attempt ${attempt + 1} failed:`, e instanceof Error ? e.message : e);
@@ -585,4 +587,14 @@ function shapeCourse(
   };
 
   return { ok: true, course };
+}
+
+/** Structured JSON from Gemini with the same retries/fallback/friendly errors. */
+export async function generateStructured(
+  prompt: string,
+  schema: object,
+): Promise<Record<string, unknown>> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("The AI isn't configured (GEMINI_API_KEY missing).");
+  return callGemini(apiKey, [{ text: prompt }], false, schema);
 }

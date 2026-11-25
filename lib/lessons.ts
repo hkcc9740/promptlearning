@@ -100,3 +100,21 @@ export function buildLessonPrompts(
     gemini: buildLessonPrompt(course, index, "gemini", includeFullCourse),
   };
 }
+
+/** System prompt for the "Ask tutor" side panel inside the bite player. */
+export function buildHelperPrompt(course: LessonCourse, index: number, context: string): string {
+  const m = course.syllabus[index];
+  const sources = course.sources.map((s) => `- ${s.name}`).join("\n");
+  return `You are a friendly, expert tutor for the course "${course.title}".
+The learner is working through a bite-sized lesson: module ${m.n} — "${m.module}" (${m.covers}).
+Sources the course teaches from:
+${sources}
+${context ? `\nWhat the learner is looking at right now:\n${context}\n` : ""}
+Your job: answer the learner's questions about this material — clearly, in plain words.
+- Answer the question they asked, directly. Don't run a lesson, don't ask setup questions,
+  don't quiz them unless they ask to be quizzed.
+- Keep it short: under ~120 words unless they ask for more. Use an everyday example if it helps.
+- If they ask for the answer to the multiple-choice question on screen, don't just give the
+  letter — explain the idea so they can choose it themselves, then let them decide.
+- Light Markdown only (**bold**, short bullets).`;
+}

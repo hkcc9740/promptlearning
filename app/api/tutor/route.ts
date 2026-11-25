@@ -1,7 +1,7 @@
 import { loadCourse } from "@/lib/course-ref";
 import { getEntitlements } from "@/lib/entitlements";
 import { completeLesson, currentLesson, getProgress, parseCourseRef } from "@/lib/enrollments";
-import { buildLessonPrompt, LESSON_COMPLETE_MARKER } from "@/lib/lessons";
+import { buildHelperPrompt, buildLessonPrompt, LESSON_COMPLETE_MARKER } from "@/lib/lessons";
 import { getSessionUser } from "@/lib/session";
 import {
   countUserMessagesSince,
@@ -28,7 +28,13 @@ export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return fail("Please sign in again.", 401);
 
-  let body: { courseRef?: unknown; moduleIndex?: unknown; message?: unknown };
+  let body: {
+    courseRef?: unknown;
+    moduleIndex?: unknown;
+    message?: unknown;
+    helper?: unknown;
+    context?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -64,14 +70,19 @@ export async function POST(req: Request) {
 
   const thread = await getThread(user.id, ref, moduleIndex);
   let text = typeof body.message === "string" ? body.message.trim() : "";
-  if (!text && thread.length === 0) text = KICKOFF;
+  if (!text && thread.length === 0 && body.helper !== true) text = KICKOFF;
   if (!text) return fail("Type a message first.");
   if (text.length > MAX_MESSAGE_CHARS) return fail(`Keep messages under ${MAX_MESSAGE_CHARS} characters.`);
 
   const userMsg: ChatMessage = { role: "user", content: text };
   await saveMessages(user.id, ref, moduleIndex, [userMsg]);
 
-  const system = buildLessonPrompt(course, moduleIndex, "gemini", ent.plan.wholeCoursePrompt, "inline");
+  // "Ask tutor" panel in the bite player: answer questions, never run or complete the lesson.
+  const helper = body.helper === true;
+  const context = typeof body.context === "string" ? body.context.slice(0, 2000) : "";
+  const system = helper
+    ? buildHelperPrompt(course, moduleIndex, context)
+    : buildLessonPrompt(course, moduleIndex, "gemini", ent.plan.wholeCoursePrompt, "inline");
 
   let upstream: Response;
   try {
@@ -116,7 +127,7 @@ export async function POST(req: Request) {
         }
 
         const visible = flush(true).trim();
-        const passed = full.includes(LESSON_COMPLETE_MARKER);
+        const passed = !helper && full.includes(LESSON_COMPLETE_MARKER);
         if (visible) await saveMessages(user.id, ref, moduleIndex, [{ role: "model", content: visible }]);
         if (passed) {
           const res = await completeLesson(user.id, ref, moduleIndex, course.syllabus.length);

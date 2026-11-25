@@ -111,9 +111,14 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
     !!user &&
     (user.plan === "plus" || user.plan === "pro") &&
     ACTIVE_STATUSES.has(user.subscriptionStatus ?? "");
-  const plan = isComplimentaryPro(user?.email)
-    ? PLANS.pro
-    : PLANS[paidActive ? (user.plan as PlanId) : "free"];
+  // Local testing only: DEV_PLAN=pro (or plus/free) in .env.local overrides the plan.
+  const devPlan = process.env.NODE_ENV !== "production" ? process.env.DEV_PLAN : undefined;
+  const plan =
+    devPlan && devPlan in PLANS
+      ? PLANS[devPlan as PlanId]
+      : isComplimentaryPro(user?.email)
+        ? PLANS.pro
+        : PLANS[paidActive ? (user.plan as PlanId) : "free"];
 
   const started = Number(courses?.n ?? 0);
   const done = Number(lessons?.n ?? 0);

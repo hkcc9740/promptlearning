@@ -2,7 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { loadCourse } from "@/lib/course-ref";
-import { completeLesson, parseCourseRef, startCourse, type CourseRef } from "@/lib/enrollments";
+import { getOrCreateBites } from "@/lib/bites";
+import { getEntitlements } from "@/lib/entitlements";
+import {
+  completeLesson,
+  currentLesson,
+  getProgress,
+  parseCourseRef,
+  startCourse,
+  type CourseRef,
+} from "@/lib/enrollments";
 import { getSessionUser } from "@/lib/session";
 
 export type LearningResult = { ok: true } | { ok: false; error: string };
@@ -47,4 +56,33 @@ export async function completeLessonAction(rawRef: string, moduleIndex: number):
   }
   revalidatePath(target.path);
   return { ok: true };
+}
+
+export type BitesResult =
+  | { ok: true; bites: import("@/lib/bites").Bite[] }
+  | { ok: false; error: string };
+
+/** The bites for the learner's current, unlocked lesson (generated once, then cached). */
+export async function getLessonBitesAction(rawRef: string, moduleIndex: number): Promise<BitesResult> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, error: "Please sign in again." };
+  const ref = parseCourseRef(rawRef);
+  const loaded = ref && (await loadCourse(user.id, ref));
+  if (!ref || !loaded) return { ok: false, error: "Course not found." };
+
+  const [progress, ent] = await Promise.all([getProgress(user.id, ref), getEntitlements(user.id)]);
+  if (!progress.enrolled) return { ok: false, error: "Start the course first." };
+  if (currentLesson(progress, loaded.course.syllabus.length) !== moduleIndex) {
+    return { ok: false, error: "That isn’t your current lesson. Refresh the page." };
+  }
+  if (ent.lessonsLeftToday !== null && ent.lessonsLeftToday <= 0) {
+    return { ok: false, error: "That’s today’s lesson done! The next one unlocks tomorrow." };
+  }
+
+  try {
+    const { bites } = await getOrCreateBites(ref, loaded.course, moduleIndex);
+    return { ok: true, bites };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn’t prepare this lesson." };
+  }
 }

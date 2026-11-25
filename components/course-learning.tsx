@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { completeLessonAction, startCourseAction } from "@/app/actions/learning";
-import { LessonChat } from "@/components/lesson-chat";
+import { LessonPlayer } from "@/components/lesson-player";
 import { PromptPanel } from "@/components/prompt-panel";
 import type { LearningState } from "@/lib/course-learning";
 
@@ -117,6 +117,7 @@ function Learning({
   state: Extract<LearningState, { kind: "learning" }>;
 }) {
   const [mode, setMode] = useState<"chat" | "lesson" | "full">("chat");
+  const [playing, setPlaying] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const done = new Set(state.completed);
@@ -188,7 +189,7 @@ function Learning({
             <div className="flex gap-1 rounded-full bg-bg-2 p-1 text-sm" role="tablist">
               {(
                 [
-                  ["chat", "💬 Learn here"],
+                  ["chat", "📚 Learn here"],
                   ["lesson", "Your own AI"],
                   ...(state.full ? ([["full", "Whole course"]] as const) : []),
                 ] as const
@@ -210,26 +211,40 @@ function Learning({
 
           {mode === "chat" && state.lesson && state.chat ? (
             <>
-              <LessonChat
-                key={`${courseRef}:${state.chat.moduleIndex}`}
-                courseRef={courseRef}
-                moduleIndex={state.chat.moduleIndex}
-                lessonTitle={`Lesson ${state.chat.moduleIndex + 1} · ${modules[state.chat.moduleIndex]?.module ?? ""}`}
-                initialMessages={state.chat.messages}
-                messagesLeftToday={state.chat.messagesLeftToday}
-              />
-              <p className="text-xs text-muted text-center">
-                Pass the tutor’s check question and the lesson completes automatically.
-                {state.lessonsPerDay !== null && (
-                  <>
-                    {" "}
-                    {state.planName}: {state.lessonsPerDay} {plural(state.lessonsPerDay, "lesson")} a day ·{" "}
-                    <Link href="/pricing" className="link-accent">
-                      go faster
-                    </Link>
-                  </>
-                )}
-              </p>
+              <div className="card p-6">
+                <span className="eyebrow mb-3 inline-block">
+                  Today’s lesson · {modules[state.chat.moduleIndex]?.n}
+                </span>
+                <p className="text-xl font-semibold leading-snug mb-1">
+                  {modules[state.chat.moduleIndex]?.module}
+                </p>
+                <p className="text-sm text-ink-2 mb-5">
+                  Bite-sized steps with a quick check after each one. About 5 minutes.
+                </p>
+                <button type="button" onClick={() => setPlaying(true)} className="btn btn-primary w-full">
+                  Start lesson →
+                </button>
+              </div>
+              {state.lessonsPerDay !== null && (
+                <p className="text-xs text-muted text-center">
+                  {state.planName}: {state.lessonsPerDay} {plural(state.lessonsPerDay, "lesson")} a day ·{" "}
+                  <Link href="/pricing" className="link-accent">
+                    go faster
+                  </Link>
+                </p>
+              )}
+              {playing && (
+                <LessonPlayer
+                  courseRef={courseRef}
+                  courseTitle={title}
+                  moduleIndex={state.chat.moduleIndex}
+                  moduleN={modules[state.chat.moduleIndex]?.n ?? String(state.chat.moduleIndex).padStart(2, "0")}
+                  moduleTitle={modules[state.chat.moduleIndex]?.module ?? ""}
+                  isLastLesson={state.chat.moduleIndex === modules.length - 1}
+                  chat={state.chat}
+                  onClose={() => setPlaying(false)}
+                />
+              )}
             </>
           ) : mode === "full" && state.full ? (
             <PromptPanel prompts={state.full} title={title} signedIn signInHref="/signin" />

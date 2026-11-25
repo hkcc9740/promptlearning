@@ -121,5 +121,20 @@ export const lessonMessages = pgTable(
   ],
 );
 
+/**
+ * Generated "bites" for one lesson, cached so every learner (and every revisit)
+ * reuses them instead of spending another AI call. Shape: see lib/bites.ts.
+ */
+export const lessonContent = pgTable(
+  "lesson_content",
+  {
+    courseRef: text("course_ref").notNull(),
+    moduleIndex: integer("module_index").notNull(),
+    data: jsonb("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.courseRef, t.moduleIndex] })],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type GeneratedCourseRow = typeof generatedCourses.$inferSelect;
