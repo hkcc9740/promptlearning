@@ -140,9 +140,13 @@ export function CourseGenerator({ signedIn, signInHref }: Props) {
           <SmartInput disabled={loading || full} onAddText={addFromInput} onAddFiles={addFiles} onPickBook={add} />
         ) : (
           <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 rounded-[var(--radius)] border border-line bg-white px-4 py-3 text-base text-muted">
-              Paste a link, search a book, or drop a PDF…
-            </div>
+            {/* Signed out: the "input" is a link to sign in, so clicking it never feels broken. */}
+            <Link
+              href={signInHref}
+              className="flex-1 min-w-0 rounded-[var(--radius)] border border-line bg-white px-4 py-3 text-base text-muted hover:border-ink transition-colors cursor-text"
+            >
+              Sign in to paste a link, search a book, or add a PDF…
+            </Link>
             <Link href={signInHref} className="btn btn-primary shrink-0 text-center">
               Sign in to start
             </Link>
