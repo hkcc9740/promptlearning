@@ -43,6 +43,8 @@ export type Entitlements = {
   /** When the monthly quota / daily lessons reset (learner's local midnight). */
   monthResetsAt: Date;
   dayResetsAt: Date;
+  /** Local midnight today (start of the learner's day). */
+  dayStartsAt: Date;
   timeZone: string;
 };
 
@@ -137,6 +139,7 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
     lessonsLeftToday: plan.lessonsPerDay === null ? null : Math.max(0, plan.lessonsPerDay - done),
     monthResetsAt: month.end,
     dayResetsAt: day.end,
+    dayStartsAt: day.start,
     timeZone,
   };
 }

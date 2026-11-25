@@ -1,21 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCourse } from "@/lib/courses";
+import { loadCourse } from "@/lib/course-ref";
 import { completeLesson, parseCourseRef, startCourse, type CourseRef } from "@/lib/enrollments";
-import { getMyCourse } from "@/lib/library";
 import { getSessionUser } from "@/lib/session";
 
 export type LearningResult = { ok: true } | { ok: false; error: string };
 
 /** Resolve a course ref to its page path + module count (and check access). */
 async function resolve(userId: string, ref: CourseRef) {
-  if (ref.startsWith("static:")) {
-    const course = getCourse(ref.slice("static:".length));
-    return course?.published ? { path: `/courses/${course.slug}`, modules: course.syllabus.length } : null;
-  }
-  const item = await getMyCourse(userId, ref.slice("gen:".length));
-  return item ? { path: `/courses/g/${item.id}`, modules: item.course.syllabus.length } : null;
+  const loaded = await loadCourse(userId, ref);
+  return loaded ? { path: loaded.path, modules: loaded.course.syllabus.length } : null;
 }
 
 export async function startCourseAction(rawRef: string): Promise<LearningResult> {

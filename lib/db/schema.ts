@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  serial,
   jsonb,
   pgTable,
   primaryKey,
@@ -97,6 +98,26 @@ export const lessonCompletions = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.courseRef, t.moduleIndex] }),
     index("lesson_completions_user_completed_idx").on(t.userId, t.completedAt),
+  ],
+);
+
+/** The in-site AI tutor conversation, one thread per learner × course × lesson. */
+export const lessonMessages = pgTable(
+  "lesson_messages",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    courseRef: text("course_ref").notNull(),
+    moduleIndex: integer("module_index").notNull(),
+    role: text("role").notNull(), // "user" | "model"
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("lesson_messages_thread_idx").on(t.userId, t.courseRef, t.moduleIndex, t.id),
+    index("lesson_messages_user_created_idx").on(t.userId, t.createdAt),
   ],
 );
 

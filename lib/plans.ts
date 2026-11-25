@@ -12,6 +12,8 @@ export type Plan = {
   coursesPerMonth: number | null;
   /** Lessons a learner may complete per day (UTC), Duolingo-style. null = own pace. */
   lessonsPerDay: number | null;
+  /** Messages a learner may send the in-site AI tutor per day. null = unlimited. */
+  tutorMessagesPerDay: number | null;
   /** Can copy the whole course as one prompt (vs. one lesson at a time). */
   wholeCoursePrompt: boolean;
   price: null | {
@@ -29,11 +31,13 @@ export const PLANS: Record<PlanId, Plan> = {
     tagline: "Build the habit",
     coursesPerMonth: 1,
     lessonsPerDay: 1,
+    tutorMessagesPerDay: 40,
     wholeCoursePrompt: false,
     price: null,
     features: [
       "1 course a month",
       "1 lesson a day: a steady, paced path",
+      "Learn right here with an AI tutor",
       "Every catalog course + generate your own",
     ],
   },
@@ -43,6 +47,7 @@ export const PLANS: Record<PlanId, Plan> = {
     tagline: "Learn at your pace",
     coursesPerMonth: 6,
     lessonsPerDay: null,
+    tutorMessagesPerDay: 200,
     wholeCoursePrompt: true,
     price: { monthly: 5, annualPerMonth: 4, introFirstMonth: 1 },
     features: [
@@ -57,6 +62,7 @@ export const PLANS: Record<PlanId, Plan> = {
     tagline: "Learn everything",
     coursesPerMonth: null,
     lessonsPerDay: null,
+    tutorMessagesPerDay: 500, // fair use: each message costs an AI call
     wholeCoursePrompt: true,
     price: { monthly: 20, annualPerMonth: 18, introFirstMonth: 10 },
     features: [

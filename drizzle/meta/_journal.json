@@ -29,6 +29,13 @@
       "when": 1795565352629,
       "tag": "0003_course_image",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795570251561,
+      "tag": "0004_lesson_messages",
+      "breakpoints": true
     }
   ]
 }

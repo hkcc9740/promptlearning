@@ -3,6 +3,7 @@ import type { PromptVariants } from "@/lib/courses";
 import { getEntitlements } from "@/lib/entitlements";
 import { currentLesson, getProgress, type CourseRef } from "@/lib/enrollments";
 import { buildLessonPrompts, type LessonCourse } from "@/lib/lessons";
+import { countUserMessagesSince, getThread, type ChatMessage } from "@/lib/tutor";
 import { ensureUser, type SessionUser } from "@/lib/session";
 
 export type LearningState =
@@ -27,6 +28,12 @@ export type LearningState =
       dayResetsAt: string;
       /** Whole-course prompt — paid plans only. */
       full: PromptVariants | null;
+      /** In-site tutor chat for the current lesson (null when finished/locked). */
+      chat: null | {
+        moduleIndex: number;
+        messages: ChatMessage[];
+        messagesLeftToday: number | null;
+      };
     };
 
 export function teaserOf(prompts: PromptVariants): PromptVariants {
@@ -60,6 +67,20 @@ export async function getLearningState(
   const current = currentLesson(progress, course.syllabus.length);
   const locked = ent.lessonsLeftToday !== null && ent.lessonsLeftToday <= 0;
 
+  let chat: Extract<LearningState, { kind: "learning" }>["chat"] = null;
+  if (current !== null && !locked) {
+    const [messages, sentToday] = await Promise.all([
+      getThread(user.id, ref, current),
+      ent.plan.tutorMessagesPerDay === null ? Promise.resolve(0) : countUserMessagesSince(user.id, ent.dayStartsAt),
+    ]);
+    chat = {
+      moduleIndex: current,
+      messages,
+      messagesLeftToday:
+        ent.plan.tutorMessagesPerDay === null ? null : Math.max(0, ent.plan.tutorMessagesPerDay - sentToday),
+    };
+  }
+
   return {
     kind: "learning",
     planName: ent.plan.name,
@@ -73,5 +94,6 @@ export async function getLearningState(
     lessonsLeftToday: ent.lessonsLeftToday,
     dayResetsAt: ent.dayResetsAt.toISOString(),
     full: ent.plan.wholeCoursePrompt ? course.prompts : null,
+    chat,
   };
 }

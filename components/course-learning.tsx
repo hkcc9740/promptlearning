@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { completeLessonAction, startCourseAction } from "@/app/actions/learning";
+import { LessonChat } from "@/components/lesson-chat";
 import { PromptPanel } from "@/components/prompt-panel";
 import type { LearningState } from "@/lib/course-learning";
 
@@ -115,7 +116,7 @@ function Learning({
   modules: Module[];
   state: Extract<LearningState, { kind: "learning" }>;
 }) {
-  const [mode, setMode] = useState<"lesson" | "full">("lesson");
+  const [mode, setMode] = useState<"chat" | "lesson" | "full">("chat");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const done = new Set(state.completed);
@@ -183,25 +184,54 @@ function Learning({
         </div>
       ) : (
         <>
-          {state.full && (
+          {state.lesson && (
             <div className="flex gap-1 rounded-full bg-bg-2 p-1 text-sm" role="tablist">
-              {(["lesson", "full"] as const).map((m) => (
+              {(
+                [
+                  ["chat", "💬 Learn here"],
+                  ["lesson", "Your own AI"],
+                  ...(state.full ? ([["full", "Whole course"]] as const) : []),
+                ] as const
+              ).map(([m, label]) => (
                 <button
                   key={m}
                   role="tab"
                   aria-selected={mode === m}
                   onClick={() => setMode(m)}
-                  className={`flex-1 rounded-full px-3 py-1.5 font-medium transition-colors ${
+                  className={`flex-1 whitespace-nowrap rounded-full px-2.5 py-1.5 font-medium transition-colors ${
                     mode === m ? "bg-white shadow-[var(--shadow-sm)] text-ink" : "text-ink-2"
                   }`}
                 >
-                  {m === "lesson" ? "Today’s lesson" : "Whole course"}
+                  {label}
                 </button>
               ))}
             </div>
           )}
 
-          {mode === "full" && state.full ? (
+          {mode === "chat" && state.lesson && state.chat ? (
+            <>
+              <LessonChat
+                key={`${courseRef}:${state.chat.moduleIndex}`}
+                courseRef={courseRef}
+                moduleIndex={state.chat.moduleIndex}
+                lessonTitle={`Lesson ${state.chat.moduleIndex + 1} · ${modules[state.chat.moduleIndex]?.module ?? ""}`}
+                initialMessages={state.chat.messages}
+                messagesLeftToday={state.chat.messagesLeftToday}
+              />
+              <p className="text-xs text-muted text-center">
+                Pass the tutor’s check question and the lesson completes automatically.
+                {state.lessonsPerDay !== null && (
+                  <>
+                    {" "}
+                    {state.planName}: {state.lessonsPerDay} {plural(state.lessonsPerDay, "lesson")} a day ·{" "}
+                    <Link href="/pricing" className="link-accent">
+                      go faster
+                    </Link>
+                  </>
+                )}
+              </p>
+            </>
+          ) : mode === "full" && state.full ? (
             <PromptPanel prompts={state.full} title={title} signedIn signInHref="/signin" />
           ) : state.lesson ? (
             <>
