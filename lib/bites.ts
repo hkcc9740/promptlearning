@@ -14,7 +14,10 @@ export type Bite = {
   options: BiteOption[];
   correct: number; // index into options
 };
-export type LessonBites = { bites: Bite[] };
+export type LessonBites = { v?: number; bites: Bite[] };
+
+/** Bump when the writing rules change: older cached lessons get regenerated. */
+const BITES_VERSION = 2;
 
 const bitesSchema = {
   type: "OBJECT",
@@ -58,14 +61,27 @@ THIS LESSON: module ${m.n} — "${m.module}"${m.source ? ` (mainly from ${m.sour
 What it covers: ${m.covers}
 The lesson's final check (gate): ${m.gate}
 
+THE GOLDEN RULE: the learner knows NOTHING beyond what these bites teach. Every question
+must be answerable using ONLY that bite's "explain" text plus the earlier bites' explanations.
+Before writing a question, check: is every idea needed to pick the right answer stated in
+the explanation? If not, add it to the explanation or change the question.
+
 Write 4 bites (3 if the topic is small, 5 if it's big). Each bite teaches ONE idea:
 - "title": 2–6 words, the idea's name (e.g. "Update the Love Map").
-- "explain": 1–3 plain sentences that teach the idea. No fluff, no jargon left unexplained.
+- "explain": 2–4 plain sentences that TEACH the idea fully enough to answer the question:
+  what it is, what it looks like in real life, and why it matters. Define every technical
+  term in everyday words the first time it appears (e.g. "contempt — treating your partner
+  as beneath you, like eye-rolling or mockery"). Don't name-drop research tools, methods
+  or jargon the question doesn't need.
 - "question": a realistic mini-scenario with named people (e.g. Alex and Maya) that tests
-  APPLYING the idea, not recalling a definition. One or two sentences.
+  APPLYING the idea just taught, not recalling a definition. One or two sentences, using
+  the same plain words as the explanation. Don't give the answer away: the scenario must
+  not contain the right option's wording — the learner should have to think about which
+  option fits the idea.
 - "hint": one gentle nudge sentence that helps without giving the answer away.
 - "options": exactly 4. One clearly best answer; three plausible but wrong ones
-  (common mistakes). Each option is short (under ~15 words). Quote spoken lines in “ ”.
+  (common mistakes a beginner might make). Wrong options must not rely on concepts that
+  haven't been taught either. Each option is short (under ~15 words). Quote spoken lines in “ ”.
   "why": one sentence explaining why THAT option is right or wrong.
 - "correct": the 0-based index of the best option.
 Bites build on each other. The LAST bite must be the lesson's gate, turned into a
@@ -111,7 +127,7 @@ function clean(raw: Record<string, unknown>): LessonBites | null {
       correct: mixed.findIndex((t) => t.isRight),
     });
   }
-  return bites.length >= 2 ? { bites } : null;
+  return bites.length >= 2 ? { v: BITES_VERSION, bites } : null;
 }
 
 /** Cached bites for a lesson, generating (once) if needed. */
@@ -126,7 +142,8 @@ export async function getOrCreateBites(
     .from(schema.lessonContent)
     .where(and(eq(schema.lessonContent.courseRef, ref), eq(schema.lessonContent.moduleIndex, moduleIndex)))
     .limit(1);
-  if (cached) return cached.data as LessonBites;
+  const hit = cached?.data as LessonBites | undefined;
+  if (hit && (hit.v ?? 1) >= BITES_VERSION) return hit;
 
   let lesson: LessonBites | null = null;
   for (let attempt = 0; attempt < 2 && !lesson; attempt++) {
@@ -137,6 +154,9 @@ export async function getOrCreateBites(
   await db
     .insert(schema.lessonContent)
     .values({ courseRef: ref, moduleIndex, data: lesson })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [schema.lessonContent.courseRef, schema.lessonContent.moduleIndex],
+      set: { data: lesson, createdAt: new Date() },
+    });
   return lesson;
 }
