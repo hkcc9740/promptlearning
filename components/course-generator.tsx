@@ -7,7 +7,7 @@ import { resolveSourceAction, searchBooksAction } from "@/app/actions/sources";
 import type { GeneratedCourse } from "@/lib/generate";
 import {
   classifySource,
-  MAX_PDF_BYTES,
+  MAX_UPLOAD_PDF_BYTES,
   MAX_SOURCES,
   SOURCE_GROUPS,
   type ShelfSource,
@@ -78,8 +78,8 @@ export function CourseGenerator({ signedIn, signInHref }: Props) {
         add({ ...placeholder, status: "error", error: "Only PDF files for now." });
         continue;
       }
-      if (file.size > MAX_PDF_BYTES) {
-        add({ ...placeholder, status: "error", error: "PDFs can be up to 20 MB." });
+      if (file.size > MAX_UPLOAD_PDF_BYTES) {
+        add({ ...placeholder, status: "error", error: "Uploads can be up to 4 MB. Paste a link to bigger PDFs." });
         continue;
       }
       add(placeholder);

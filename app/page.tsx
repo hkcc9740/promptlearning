@@ -5,6 +5,10 @@ import { CourseCard } from "@/components/course-card";
 import { CourseGenerator } from "@/components/course-generator";
 import { NotionTag } from "@/components/notion-tag";
 
+// Course generation (a Server Action on this page) can take 1–2.5 minutes with
+// retries. Raises the serverless time limit for this page's actions (Vercel).
+export const maxDuration = 300;
+
 export default async function HomePage() {
   const session = await auth();
   const courses = getPublishedCourses();

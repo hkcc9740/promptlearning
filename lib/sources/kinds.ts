@@ -13,7 +13,10 @@ export const SOURCE_GROUPS: { kind: SourceKind; icon: string; label: string }[] 
 ];
 
 export const MAX_SOURCES = 10;
+/** PDFs fetched from a link server-side (sent inline to the AI). */
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
+/** PDFs uploaded from the browser: Vercel caps function request bodies at 4.5 MB. */
+export const MAX_UPLOAD_PDF_BYTES = 4 * 1024 * 1024;
 
 /** A source the learner added, as kept on the client and sent to generation. */
 export type ShelfSource = {
