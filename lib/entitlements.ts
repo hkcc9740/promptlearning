@@ -14,7 +14,8 @@ const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
  */
 function isComplimentaryPro(email: string | null | undefined): boolean {
   if (!email) return false;
-  const list = (process.env.COMP_PRO_EMAILS ?? "")
+  // Accept the lowercase name too — env var names are case-sensitive and easy to mistype.
+  const list = (process.env.COMP_PRO_EMAILS ?? process.env.comp_pro_emails ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
