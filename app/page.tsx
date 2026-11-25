@@ -43,11 +43,11 @@ export default async function HomePage() {
       </section>
 
       {/* ---------------- GENERATE FROM A LINK ---------------- */}
-      <section className="wrap pb-16 -mt-2">
+      <section id="generate" className="wrap pb-16 -mt-2 scroll-mt-8">
         <div className="flex items-baseline justify-between flex-wrap gap-4 mb-6">
           <h2 className="text-3xl sm:text-4xl">Generate your own</h2>
           <p className="text-sm text-muted max-w-sm">
-            Found a course anywhere? Turn it into an interactive one you can run.
+            Found something worth learning? Books, papers, videos, links: turn them into a course you can run.
           </p>
         </div>
         <CourseGenerator

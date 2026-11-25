@@ -1,0 +1,1 @@
+ALTER TABLE "generated_courses" ADD COLUMN "image_data" text;

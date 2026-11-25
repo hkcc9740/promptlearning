@@ -9,6 +9,10 @@ type Props = {
   title: string;
   signedIn: boolean;
   signInHref: string;
+  /** Overrides the "How to use" line under the buttons. */
+  hint?: string;
+  /** Overrides the fake filename in the window bar. */
+  fileLabel?: string;
 };
 
 const TARGETS: { id: AiTarget; label: string; url: string }[] = [
@@ -17,7 +21,7 @@ const TARGETS: { id: AiTarget; label: string; url: string }[] = [
   { id: "gemini", label: "Gemini", url: "https://gemini.google.com/app" },
 ];
 
-export function PromptPanel({ prompts, title, signedIn, signInHref }: Props) {
+export function PromptPanel({ prompts, title, signedIn, signInHref, hint, fileLabel }: Props) {
   const [target, setTarget] = useState<AiTarget>("claude");
   const [copied, setCopied] = useState(false);
 
@@ -80,7 +84,7 @@ export function PromptPanel({ prompts, title, signedIn, signInHref }: Props) {
         <span className="dot" style={{ background: "#febc2e" }} />
         <span className="dot" style={{ background: "#28c840" }} />
         <span className="ml-2 truncate">
-          {title.toLowerCase().replace(/\s+/g, "-")}.{target}.txt
+          {fileLabel ?? title.toLowerCase().replace(/\s+/g, "-")}.{target}.txt
         </span>
         <span className="ml-auto tabular-nums">{lineCount} lines</span>
       </div>
@@ -126,8 +130,8 @@ export function PromptPanel({ prompts, title, signedIn, signInHref }: Props) {
             Copy & open {active.label}
           </button>
           <p className="text-xs leading-relaxed" style={{ color: "var(--code-muted)" }}>
-            How to use: paste this into {active.label} and answer its first question. The
-            course runs itself from there.
+            {hint ??
+              `How to use: paste this into ${active.label} and answer its first question. The course runs itself from there.`}
           </p>
         </div>
       )}

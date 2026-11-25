@@ -3,6 +3,7 @@
 // Components — never from a "use client" module.
 import type { NotionColor } from "@/components/notion-tag";
 import type { PromptVariants } from "@/lib/courses";
+import { groupOf, MAX_PDF_BYTES, type ShelfSource, type SourceKind } from "@/lib/sources/kinds";
 
 /* ------------------------------------------------------------------ */
 /*  Types — a generated course is a lighter, un-persisted Course.       */
@@ -35,6 +36,8 @@ export type GeneratedCourse = {
   prompts: PromptVariants;
   sourceUrl: string;
   sourceTitle: string;
+  /** What the learner gave us to build this course from (shelf items). */
+  builtFrom?: { kind: SourceKind; title: string; subtitle?: string; url?: string }[];
 };
 
 export type GenResult =
@@ -51,7 +54,9 @@ const NOTION_COLORS: NotionColor[] = [
   "gray",
 ];
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+// gemini-2.5-flash is closed to new API keys (Nov 2026). Override with GEMINI_MODEL.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash-lite";
 
 /* ------------------------------------------------------------------ */
 /*  URL safety — only fetch public http(s) course pages.               */
@@ -92,7 +97,7 @@ export function normalizeUrl(raw: string): string | null {
 /*  Fetch + reduce a page to readable text.                            */
 /* ------------------------------------------------------------------ */
 
-type PageContent = { title: string; text: string };
+export type PageContent = { title: string; text: string };
 
 function decodeEntities(s: string): string {
   return s
@@ -132,7 +137,7 @@ function htmlToContent(html: string): PageContent {
   return { title, text: combined.slice(0, 12000) };
 }
 
-async function fetchPage(url: string): Promise<PageContent | null> {
+export async function fetchPage(url: string): Promise<PageContent | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
@@ -232,44 +237,63 @@ const courseSchema = {
   ],
 };
 
-function buildInstruction(url: string, page: PageContent | null): string {
-  const pageBlock = page
-    ? `PAGE TITLE: ${page.title || "(none)"}\n\nPAGE CONTENT (scraped, may be noisy/truncated):\n${page.text}`
-    : `The page could not be fetched. Use the URL itself and your own knowledge of this course/topic.`;
+function describeSource(src: ShelfSource, i: number): string {
+  const tag = `[S${i + 1}] ${groupOf(src.kind).label.replace(/s$/, "").toUpperCase()}: ${src.title}`;
+  const lines = [tag];
+  if (src.subtitle) lines.push(`(${src.subtitle})`);
+  if (src.url) lines.push(`Link: ${src.url}`);
+  if (src.book) {
+    lines.push(
+      `Book by ${src.book.authors.join(", ") || "unknown author"}${src.book.year ? `, ${src.book.year}` : ""}.`,
+      src.book.subjects?.length ? `Subjects: ${src.book.subjects.join(", ")}.` : "",
+      "Teach its key ideas from your knowledge of this book; attribute them to it.",
+    );
+  }
+  if (src.kind === "video") lines.push("The video itself is attached — watch it.");
+  if (src.file || (src.kind === "paper" && src.url && /\.pdf($|\?)/i.test(src.url))) {
+    lines.push("The document itself is attached — read it.");
+  }
+  if (src.text) lines.push(`CONTENT (extracted, may be noisy/truncated):\n${src.text}`);
+  if (src.quality === "partial" && !src.text) {
+    lines.push("We could only get the title — use your own knowledge of this source/topic.");
+  }
+  return lines.filter(Boolean).join("\n");
+}
 
+function buildInstruction(sources: ShelfSource[], focus: string): string {
+  const many = sources.length > 1;
   return `You are the curriculum designer for "Prompt Learning", a site that turns any
-topic into a self-running, interactive course a learner pastes into an AI chat
-(Claude, ChatGPT, or Gemini). A learner pasted this course link:
+material into a self-running, interactive course a learner pastes into an AI chat
+(Claude, ChatGPT, or Gemini). The learner gave us ${many ? `${sources.length} sources` : "this source"}:
 
-${url}
-
-${pageBlock}
-
-Design a single Prompt-Learning course that teaches the SUBJECT of that page —
-not a summary of the page, but a real course on the topic, distilled from the
-best teachers and primary sources on earth (cite real experts/books/institutions
-relevant to the subject in "sources"; never invent fake citations).
+${sources.map(describeSource).join("\n\n---\n\n")}
+${focus ? `\nTHE LEARNER'S FOCUS: "${focus}". Shape the course around this goal.\n` : ""}
+Design ONE Prompt-Learning course that teaches the SUBJECT of ${many ? "these sources, synthesized into a single coherent path (not one module per source unless that's the best structure)" : "this source"} —
+not a summary, but a real course, grounded in the learner's sources first and
+then the best teachers and primary works on the topic.
 
 Rules:
-- "icon": exactly one emoji that fits the subject.
+- "title": a clear, appealing course name (not just the source's title).
+- "icon": exactly one emoji that best fits the subject.
 - "color": one of ${NOTION_COLORS.join(", ")} that matches the vibe.
 - "kicker": 1–3 word category label (e.g. "finance", "AI agents").
 - "oneLiner": one punchy sentence for a catalog card.
 - "blurb": 1–2 sentences, who it's for and what they'll be able to do.
 - "duration": e.g. "~3 hours, self-paced". "level": e.g. "Beginner → Intermediate".
 - "outcomes": 4–6 concrete things the learner will be able to DO afterward.
-- "sources": 2–4 real, reputable sources (name + one-line note on what it gives).
+- "sources": 2–5 real sources (name + one-line note). ALWAYS include the learner's
+  own sources (use their real titles/authors); you may add 1–2 reputable extras.
+  Never invent fake citations.
 - "syllabus": 5–8 modules. "n" is a zero-padded marker "00","01",… "module" is
-  the title. "source" (optional) names where that module's ideas come from.
-  "covers" is 1–2 sentences. "gate" is a short check question the learner must
-  answer correctly before moving on.
+  the title. "source" names which of the learner's sources (by title) or which
+  expert the module draws on. "covers" is 1–2 sentences. "gate" is a short check
+  question the learner must answer correctly before moving on.
 - "graduation": the final real-world project + a share-ready one-pager they keep.
 - "prompts": for EACH of claude, chatgpt, gemini, a COMPLETE, self-contained
   system prompt the learner pastes into that AI so it runs this entire course
-  interactively — it should adopt the professor persona, teach module by module
-  using the syllabus, adapt to the learner's level, enforce the gates, and end
-  with the graduation project. Make it long and genuinely usable (not a stub).
-  Tailor each variant's phrasing to that assistant; "claude" is the reference.
+  interactively — professor persona, teach module by module using the syllabus,
+  adapt to the learner's level, enforce the gates, end with the graduation
+  project. Make it long and genuinely usable (not a stub). "claude" is the reference.
 
 Return ONLY the JSON object matching the schema.`;
 }
@@ -284,13 +308,29 @@ function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
-async function callGemini(
+type GeminiPart =
+  | { text: string }
+  | { fileData: { fileUri: string; mimeType?: string } }
+  | { inlineData: { data: string; mimeType: string } };
+
+class GeminiHttpError extends Error {
+  constructor(public status: number, detail: string) {
+    super(`Gemini request failed (${status}). ${detail.slice(0, 200)}`);
+  }
+}
+
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function callGeminiOnce(
+  model: string,
   apiKey: string,
-  instruction: string,
+  parts: GeminiPart[],
+  hasVideo: boolean,
 ): Promise<Record<string, unknown>> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 55000);
+  const timeout = setTimeout(() => controller.abort(), 110000);
 
   try {
     const res = await fetch(endpoint, {
@@ -301,25 +341,22 @@ async function callGemini(
         "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: instruction }] }],
+        contents: [{ role: "user", parts }],
         generationConfig: {
+          // Long videos are token-heavy; low resolution is plenty for teaching content.
+          ...(hasVideo ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}),
           temperature: 0.65,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 32768, // thinking models count reasoning tokens here too
           responseMimeType: "application/json",
           responseSchema: courseSchema,
         },
       }),
     });
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(
-        `Gemini request failed (${res.status}). ${detail.slice(0, 200)}`,
-      );
-    }
+    if (!res.ok) throw new GeminiHttpError(res.status, await res.text().catch(() => ""));
 
     const data = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
+      candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
       promptFeedback?: { blockReason?: string };
     };
 
@@ -330,7 +367,8 @@ async function callGemini(
     }
 
     const text = data.candidates?.[0]?.content?.parts
-      ?.map((p) => p.text ?? "")
+      ?.filter((p) => !p.thought)
+      .map((p) => p.text ?? "")
       .join("");
     if (!text) throw new Error("The AI returned an empty response.");
 
@@ -340,11 +378,95 @@ async function callGemini(
   }
 }
 
+/**
+ * Call Gemini with retries (busy / rate-limited) and a lighter fallback model.
+ * Throws an Error with a learner-friendly message.
+ */
+async function callGemini(
+  apiKey: string,
+  parts: GeminiPart[],
+  hasVideo = false,
+): Promise<Record<string, unknown>> {
+  const models = [...new Set([GEMINI_MODEL, GEMINI_FALLBACK_MODEL])];
+  const started = Date.now();
+  const BUDGET_MS = 150_000; // never keep a learner waiting longer than ~2.5 min
+  let last: unknown;
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (Date.now() - started > BUDGET_MS) throw friendly(last);
+      try {
+        return await callGeminiOnce(model, apiKey, parts, hasVideo);
+      } catch (e) {
+        last = e;
+        console.warn(`Gemini ${model} attempt ${attempt + 1} failed:`, e instanceof Error ? e.message : e);
+        if (e instanceof GeminiHttpError && RETRYABLE.has(e.status)) {
+          if (attempt < 2) await sleep(1500 * 2 ** attempt + Math.random() * 500);
+          continue;
+        }
+        if (e instanceof GeminiHttpError && e.status === 404) break; // model unavailable → fallback
+        if (e instanceof SyntaxError) continue; // malformed JSON → try again
+        throw friendly(e);
+      }
+    }
+  }
+  throw friendly(last);
+}
+
+function friendly(e: unknown): Error {
+  if (e instanceof GeminiHttpError) {
+    if (e.status === 429) return new Error("The AI is rate-limited right now (free tier). Wait a minute and try again.");
+    if (RETRYABLE.has(e.status)) return new Error("The AI is overloaded right now. Your sources are still here, so try again in a minute. Long videos are the heaviest; removing one can help.");
+    if (e.status === 400) return new Error("The AI couldn't read one of your sources (a video or file may be private, too long, or unsupported). Try removing it.");
+    if (e.status === 403) return new Error("The AI key was rejected. Check GEMINI_API_KEY in .env.local.");
+    return new Error(`The AI request failed (${e.status}). Please try again.`);
+  }
+  if (e instanceof Error && e.name === "AbortError") {
+    return new Error("The AI took too long. Try fewer or shorter sources.");
+  }
+  return e instanceof Error ? e : new Error("Unknown error.");
+}
+
 /* ------------------------------------------------------------------ */
 /*  Public entry point.                                                */
 /* ------------------------------------------------------------------ */
 
-export async function generateCourseFromUrl(rawUrl: string): Promise<GenResult> {
+/** Download a public PDF (≤ 20 MB) so it can be sent inline to the AI. */
+async function fetchPdfInline(url: string): Promise<GeminiPart | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(url, { redirect: "follow", signal: controller.signal });
+    if (!res.ok) return null;
+    const len = Number(res.headers.get("content-length") ?? 0);
+    if (len > MAX_PDF_BYTES) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength > MAX_PDF_BYTES || buf.subarray(0, 5).toString() !== "%PDF-") return null;
+    return { inlineData: { data: buf.toString("base64"), mimeType: "application/pdf" } };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function mediaParts(sources: ShelfSource[]): Promise<GeminiPart[]> {
+  const parts = await Promise.all(
+    sources.map(async (src): Promise<GeminiPart | null> => {
+      if (src.file) return { fileData: { fileUri: src.file.uri, mimeType: src.file.mimeType } };
+      if (src.kind === "video" && src.url) return { fileData: { fileUri: src.url } };
+      if (src.kind === "paper" && src.url && /\.pdf($|\?)/i.test(src.url)) return fetchPdfInline(src.url);
+      return null;
+    }),
+  );
+  return parts.filter((p): p is GeminiPart => p !== null);
+}
+
+/** Generate one course from everything on the learner's Source shelf. */
+export async function generateCourseFromSources(
+  sources: ShelfSource[],
+  focus = "",
+): Promise<GenResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return {
@@ -353,7 +475,25 @@ export async function generateCourseFromUrl(rawUrl: string): Promise<GenResult> 
         "Course generation isn't configured yet. Add a free GEMINI_API_KEY to .env.local (get one at aistudio.google.com) and restart the dev server.",
     };
   }
+  if (sources.length === 0) return { ok: false, error: "Add at least one source." };
 
+  const media = await mediaParts(sources);
+  const parts: GeminiPart[] = [...media, { text: buildInstruction(sources, focus) }];
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = await callGemini(apiKey, parts, sources.some((s) => s.kind === "video"));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error.";
+    return { ok: false, error: msg };
+  }
+
+  const first = sources.find((s) => s.url) ?? sources[0];
+  return shapeCourse(raw, first.url ?? "", first.title, sources);
+}
+
+/** Back-compat: a single pasted course link. */
+export async function generateCourseFromUrl(rawUrl: string): Promise<GenResult> {
   const url = normalizeUrl(rawUrl);
   if (!url) {
     return {
@@ -361,23 +501,31 @@ export async function generateCourseFromUrl(rawUrl: string): Promise<GenResult> 
       error: "That doesn't look like a valid public course link. Paste a full https:// URL.",
     };
   }
-
   const page = await fetchPage(url);
+  return generateCourseFromSources([
+    {
+      id: "single",
+      kind: "course",
+      title: page?.title || url,
+      url,
+      text: page?.text,
+      quality: page?.text ? "ready" : "partial",
+    },
+  ]);
+}
 
-  let raw: Record<string, unknown>;
-  try {
-    raw = await callGemini(apiKey, buildInstruction(url, page));
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error.";
-    return { ok: false, error: msg };
-  }
-
+function shapeCourse(
+  raw: Record<string, unknown>,
+  url: string,
+  sourceTitle: string,
+  shelf: ShelfSource[],
+): GenResult {
   const promptsRaw = (raw.prompts ?? {}) as Partial<PromptVariants>;
   const claude = typeof promptsRaw.claude === "string" ? promptsRaw.claude : "";
   if (!claude.trim()) {
     return {
       ok: false,
-      error: "The AI couldn't build a usable course from that link. Try a more detailed course page.",
+      error: "The AI couldn't build a usable course from that. Try adding more detailed sources.",
     };
   }
 
@@ -432,7 +580,8 @@ export async function generateCourseFromUrl(rawUrl: string): Promise<GenResult> 
         : claude,
     },
     sourceUrl: url,
-    sourceTitle: page?.title ?? url,
+    sourceTitle,
+    builtFrom: shelf.map((x) => ({ kind: x.kind, title: x.title, subtitle: x.subtitle, url: x.url })),
   };
 
   return { ok: true, course };

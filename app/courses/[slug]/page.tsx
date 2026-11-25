@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/auth";
 import { getCourse, getPublishedCourses } from "@/lib/courses";
-import { PromptPanel } from "@/components/prompt-panel";
+import { CourseLearning } from "@/components/course-learning";
+import { getLearningState } from "@/lib/course-learning";
+import { staticRef } from "@/lib/enrollments";
+import { getSessionUser } from "@/lib/session";
 import { NotionTag } from "@/components/notion-tag";
 
 export function generateStaticParams() {
@@ -30,15 +32,16 @@ export default async function CoursePage({
   const course = getCourse(slug);
   if (!course) notFound();
 
-  const session = await auth();
-  const signedIn = Boolean(session?.user);
-
-  // Never send the full prompts to signed-out visitors — only a short teaser sits
-  // behind the blur. The real curriculum is the gated asset.
-  const teaser = course.prompts.claude.split("\n").slice(0, 9).join("\n") + "\n…";
-  const panelPrompts = signedIn
-    ? course.prompts
-    : { claude: teaser, chatgpt: teaser, gemini: teaser };
+  // Prompts are handed out by learning state (teaser / one lesson / whole course),
+  // computed server-side so locked content never reaches the browser.
+  const user = await getSessionUser();
+  const ref = staticRef(course.slug);
+  const state = await getLearningState(
+    user,
+    ref,
+    course,
+    `/signin?next=${encodeURIComponent(`/courses/${course.slug}`)}`,
+  );
 
   return (
     <div>
@@ -150,11 +153,11 @@ export default async function CoursePage({
 
           {/* STICKY PROMPT PANEL */}
           <aside className="lg:sticky lg:top-8">
-            <PromptPanel
-              prompts={panelPrompts}
+            <CourseLearning
+              courseRef={ref}
               title={course.title}
-              signedIn={signedIn}
-              signInHref={`/signin?next=${encodeURIComponent(`/courses/${course.slug}`)}`}
+              modules={course.syllabus}
+              state={state}
             />
           </aside>
         </div>
