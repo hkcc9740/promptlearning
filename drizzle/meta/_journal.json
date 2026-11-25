@@ -43,6 +43,13 @@
       "when": 1795571196234,
       "tag": "0005_lesson_content",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795572884168,
+      "tag": "0006_bite_resume",
+      "breakpoints": true
     }
   ]
 }

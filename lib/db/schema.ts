@@ -77,6 +77,9 @@ export const enrollments = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     courseRef: text("course_ref").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Where the learner left off inside the current lesson's bites (for resuming). */
+    biteModule: integer("bite_module"),
+    biteStep: integer("bite_step").notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.courseRef] }),

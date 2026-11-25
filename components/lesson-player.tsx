@@ -2,7 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { completeLessonAction, getLessonBitesAction } from "@/app/actions/learning";
+import {
+  completeLessonAction,
+  getLessonBitesAction,
+  saveBiteProgressAction,
+} from "@/app/actions/learning";
 import type { Bite } from "@/lib/bites";
 import { LessonChat } from "@/components/lesson-chat";
 import { Markdown } from "@/components/markdown";
@@ -52,8 +56,14 @@ export function LessonPlayer(props: Props) {
       ok: false as const,
       error: "Couldn’t load the lesson. Check your connection and try again.",
     }));
-    if (res.ok) setBites(res.bites);
-    else setLoadError(res.error);
+    if (res.ok) {
+      setBites(res.bites);
+      if (res.resumeStep > 0) {
+        setStep(res.resumeStep);
+        setToast(`Welcome back! Picking up at bite ${res.resumeStep + 1} of ${res.bites.length}`);
+        setTimeout(() => setToast(null), 3000);
+      }
+    } else setLoadError(res.error);
   }, [courseRef, moduleIndex]);
 
   useEffect(() => {
@@ -83,7 +93,10 @@ export function LessonPlayer(props: Props) {
   async function next() {
     if (!solved || !bites) return;
     if (!isLastBite) {
-      setStep((s) => s + 1);
+      const nextStep = step + 1;
+      setStep(nextStep);
+      // Remember the learner's place (fire-and-forget; resuming is a nicety).
+      saveBiteProgressAction(courseRef, moduleIndex, nextStep).catch(() => {});
       setTried([]);
       setSolved(false);
       setShowHint(false);
@@ -100,7 +113,8 @@ export function LessonPlayer(props: Props) {
   }
 
   function close() {
-    if (finished?.ok) router.refresh();
+    // Refresh the course page so it shows new progress ("Continue lesson · Bite 3 of 4").
+    if (finished?.ok || step > 0) router.refresh();
     onClose();
   }
 

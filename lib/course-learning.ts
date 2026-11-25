@@ -1,7 +1,8 @@
 // Server-only: compute what the course sidebar shows (start / lesson / locked / done).
 import type { PromptVariants } from "@/lib/courses";
 import { getEntitlements } from "@/lib/entitlements";
-import { currentLesson, getProgress, type CourseRef } from "@/lib/enrollments";
+import { currentLesson, getBiteStep, getProgress, type CourseRef } from "@/lib/enrollments";
+import { getCachedBiteCount } from "@/lib/bites";
 import { buildLessonPrompts, type LessonCourse } from "@/lib/lessons";
 import { countUserMessagesSince, getThread, type ChatMessage } from "@/lib/tutor";
 import { ensureUser, type SessionUser } from "@/lib/session";
@@ -34,6 +35,8 @@ export type LearningState =
         messages: ChatMessage[];
         messagesLeftToday: number | null;
       };
+      /** Where the learner left off in the current lesson (null = not started). */
+      resume: null | { step: number; total: number | null };
     };
 
 export function teaserOf(prompts: PromptVariants): PromptVariants {
@@ -68,7 +71,13 @@ export async function getLearningState(
   const locked = ent.lessonsLeftToday !== null && ent.lessonsLeftToday <= 0;
 
   let chat: Extract<LearningState, { kind: "learning" }>["chat"] = null;
+  let resume: Extract<LearningState, { kind: "learning" }>["resume"] = null;
   if (current !== null && !locked) {
+    const [step, total] = await Promise.all([
+      getBiteStep(user.id, ref, current),
+      getCachedBiteCount(ref, current),
+    ]);
+    if (step > 0) resume = { step, total };
     const [messages, sentToday] = await Promise.all([
       getThread(user.id, ref, current),
       ent.plan.tutorMessagesPerDay === null ? Promise.resolve(0) : countUserMessagesSince(user.id, ent.dayStartsAt),
@@ -95,5 +104,6 @@ export async function getLearningState(
     dayResetsAt: ent.dayResetsAt.toISOString(),
     full: ent.plan.wholeCoursePrompt ? course.prompts : null,
     chat,
+    resume,
   };
 }

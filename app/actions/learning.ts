@@ -7,8 +7,10 @@ import { getEntitlements } from "@/lib/entitlements";
 import {
   completeLesson,
   currentLesson,
+  getBiteStep,
   getProgress,
   parseCourseRef,
+  saveBiteStep,
   startCourse,
   type CourseRef,
 } from "@/lib/enrollments";
@@ -59,7 +61,7 @@ export async function completeLessonAction(rawRef: string, moduleIndex: number):
 }
 
 export type BitesResult =
-  | { ok: true; bites: import("@/lib/bites").Bite[] }
+  | { ok: true; bites: import("@/lib/bites").Bite[]; resumeStep: number }
   | { ok: false; error: string };
 
 /** The bites for the learner's current, unlocked lesson (generated once, then cached). */
@@ -80,9 +82,20 @@ export async function getLessonBitesAction(rawRef: string, moduleIndex: number):
   }
 
   try {
-    const { bites } = await getOrCreateBites(ref, loaded.course, moduleIndex);
-    return { ok: true, bites };
+    const [{ bites }, saved] = await Promise.all([
+      getOrCreateBites(ref, loaded.course, moduleIndex),
+      getBiteStep(user.id, ref, moduleIndex),
+    ]);
+    return { ok: true, bites, resumeStep: Math.min(Math.max(0, saved), bites.length - 1) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn’t prepare this lesson." };
   }
+}
+
+/** Save the learner's place in the current lesson (called as they move bite to bite). */
+export async function saveBiteProgressAction(rawRef: string, moduleIndex: number, step: number): Promise<void> {
+  const user = await getSessionUser();
+  const ref = parseCourseRef(rawRef);
+  if (!user || !ref) return;
+  await saveBiteStep(user.id, ref, moduleIndex, step);
 }

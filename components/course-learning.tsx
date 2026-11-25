@@ -221,8 +221,26 @@ function Learning({
                 <p className="text-sm text-ink-2 mb-5">
                   Bite-sized steps with a quick check after each one. About 5 minutes.
                 </p>
+                {state.resume && state.resume.total !== null && (
+                  <div className="mb-4">
+                    <div className="mb-1.5 flex justify-between text-xs text-muted">
+                      <span>In progress</span>
+                      <span className="tabular-nums">
+                        Bite {state.resume.step + 1} of {state.resume.total}
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-bg-3" aria-hidden>
+                      <div
+                        className="h-full rounded-full bg-[#3f9c4f]"
+                        style={{ width: `${(state.resume.step / state.resume.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <button type="button" onClick={() => setPlaying(true)} className="btn btn-primary w-full">
-                  Start lesson →
+                  {state.resume
+                    ? `Continue lesson →${state.resume.total !== null ? ` (Bite ${state.resume.step + 1} of ${state.resume.total})` : ""}`
+                    : "Start lesson →"}
                 </button>
               </div>
               {state.lessonsPerDay !== null && (

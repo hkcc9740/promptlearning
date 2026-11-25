@@ -160,3 +160,15 @@ export async function getOrCreateBites(
     });
   return lesson;
 }
+
+/** How many bites a lesson has, if it's been generated (for "Bite 3 of 4" labels). */
+export async function getCachedBiteCount(ref: CourseRef, moduleIndex: number): Promise<number | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ data: schema.lessonContent.data })
+    .from(schema.lessonContent)
+    .where(and(eq(schema.lessonContent.courseRef, ref), eq(schema.lessonContent.moduleIndex, moduleIndex)))
+    .limit(1);
+  const d = row?.data as LessonBites | undefined;
+  return d && (d.v ?? 1) >= BITES_VERSION ? d.bites.length : null;
+}
